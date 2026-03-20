@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Kvízová tabulka</title>
+<style>
+body { font-family: Arial; margin: 20px; }
+input { margin: 5px; width: 60px; }
+table { border-collapse: collapse; margin-top: 20px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+th { background-color: #eee; }
+button { margin: 10px 5px; padding: 8px 12px; }
+#bigTable { position: fixed; top:0; left:0; width:100%; height:100%; background:white; overflow:auto; display:none; padding:20px; }
+</style>
+</head>
+<body>
+
+<h2>Nastavení týmů</h2>
+<label>Počet týmů: </label>
+<input type="number" id="teamCount" min="1">
+<button onclick="createTeams()">Vytvořit týmy</button>
+
+<div id="teams"></div>
+
+<h2>Zadání výsledků</h2>
+<div id="rounds"></div>
+<button onclick="calculateScores()">Spočítat výsledky</button>
+
+<h2>Výsledky</h2>
+<button onclick="openBigTable()">Zvětšit tabulku</button>
+<table id="results">
+<thead></thead>
+<tbody></tbody>
+</table>
+
+<div id="bigTable">
+<button onclick="closeBigTable()">Zavřít</button>
+<div id="bigContent"></div>
+</div>
+
+<script>
+let teams = [];
+let rounds = 5;
+
+function createTeams() {
+    const count = document.getElementById('teamCount').value;
+    const container = document.getElementById('teams');
+    container.innerHTML = '';
+
+    for (let i = 0; i < count; i++) {
+        container.innerHTML += `Tým ${i+1}: <input type="text" id="team_${i}"><br>`;
+    }
+
+    container.innerHTML += '<button onclick="startQuiz()">Začít kvíz</button>';
+}
+
+function startQuiz() {
+    teams = [];
+    const count = document.getElementById('teamCount').value;
+
+    for (let i = 0; i < count; i++) {
+        const name = document.getElementById(`team_${i}`).value || `Tým ${i+1}`;
+        teams.push({ name: name, scores: Array(rounds).fill(0), total: 0 });
+    }
+
+    createRounds();
+}
+
+function createRounds() {
+    const container = document.getElementById('rounds');
+    container.innerHTML = '';
+
+    let html = '<table><tr><th>Tým</th>';
+    for (let r = 0; r < rounds; r++) {
+        html += `<th>Kolo ${r+1}</th>`;
+    }
+    html += '</tr>';
+
+    teams.forEach((team, i) => {
+        html += `<tr><td>${team.name}</td>`;
+        for (let r = 0; r < rounds; r++) {
+            html += `<td><input type="number" id="score_${i}_${r}" value="0"></td>`;
+        }
+        html += '</tr>';
+    });
+
+    html += '</table>';
+    container.innerHTML = html;
+}
+
+function calculateScores() {
+    teams.forEach((team, i) => {
+        let sum = 0;
+        for (let r = 0; r < rounds; r++) {
+            const val = parseInt(document.getElementById(`score_${i}_${r}`).value) || 0;
+            team.scores[r] = val;
+            sum += val;
+        }
+        team.total = sum;
+    });
+
+    teams.sort((a, b) => b.total - a.total);
+    updateTable();
+}
+
+function updateTable() {
+    const thead = document.querySelector('#results thead');
+    const tbody = document.querySelector('#results tbody');
+
+    let headHTML = '<tr><th>Pořadí</th><th>Tým</th>';
+    for (let r = 0; r < rounds; r++) {
+        headHTML += `<th>Kolo ${r+1}</th>`;
+    }
+    headHTML += '<th>Celkem</th></tr>';
+    thead.innerHTML = headHTML;
+
+    tbody.innerHTML = '';
+
+    teams.forEach((team, index) => {
+        let row = `<tr><td>${index+1}</td><td>${team.name}</td>`;
+        team.scores.forEach(s => row += `<td>${s}</td>`);
+        row += `<td>${team.total}</td></tr>`;
+        tbody.innerHTML += row;
+    });
+}
+
+function openBigTable() {
+    document.getElementById('bigTable').style.display = 'block';
+    document.getElementById('bigContent').innerHTML = document.getElementById('results').outerHTML;
+}
+
+function closeBigTable() {
+    document.getElementById('bigTable').style.display = 'none';
+}
+</script>
+
+</body>
+</html>
