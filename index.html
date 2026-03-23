@@ -2,20 +2,47 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka</title>
+<title>Kvízová tabulka PRO</title>
 <style>
 body { font-family: Arial; margin: 20px; }
-input { margin: 5px; width: 60px; }
-table { border-collapse: collapse; margin-top: 20px; }
+input { margin: 5px; width: 70px; }
+table { border-collapse: collapse; margin-top: 20px; width:100%; }
 th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-weight: bold; }
 tr:nth-child(even) { background-color: #f2f2f2; }
 .total { background-color: #d0d0d0; }
 th { background-color: #eee; }
 button { margin: 10px 5px; padding: 8px 12px; }
-#bigTable { position: fixed; top:0; left:0; width:100%; height:100%; background:white; overflow:auto; display:none; padding:20px; }
+.winner { background-color: gold; }
+
+tr { transition: all 0.3s ease; }
+.flash { animation: flashAnim 0.4s; }
+@keyframes flashAnim {
+    0% { background-color: #90ee90; }
+    100% { background-color: inherit; }
+}
+
+#bigTable {
+    position: fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:white;
+    overflow:auto;
+    display:none;
+    padding:20px;
+}
+
+#bigTable table {
+    font-size: 26px;
+}
 </style>
 </head>
 <body>
+
+<h2>Nastavení kvízu</h2>
+<label>Datum: </label>
+<input type="date" id="quizDate"><br>
+<label>Popis: </label>
+<input type="text" id="quizDesc" style="width:300px;"><br><br>
 
 <h2>Nastavení týmů</h2>
 <label>Počet týmů: </label>
@@ -26,10 +53,12 @@ button { margin: 10px 5px; padding: 8px 12px; }
 
 <h2>Zadání výsledků</h2>
 <div id="rounds"></div>
-<button onclick="calculateScores()">Spočítat výsledky</button>
 
 <h2>Výsledky</h2>
 <button onclick="openBigTable()">Zvětšit tabulku</button>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="exportImage()">Export obrázek</button>
+
 <table id="results">
 <thead></thead>
 <tbody></tbody>
@@ -50,7 +79,9 @@ function createTeams() {
     container.innerHTML = '';
 
     for (let i = 0; i < count; i++) {
-        container.innerHTML += `Tým ${i+1}: <input type="text" id="team_${i}"><br>`;
+        container.innerHTML += `Tým ${i+1}: 
+        <input type="text" id="team_${i}">
+        hráči: <input type="number" value="1" id="players_${i}"><br>`;
     }
 
     container.innerHTML += '<button onclick="startQuiz()">Začít kvíz</button>';
@@ -61,82 +92,170 @@ function startQuiz() {
     const count = document.getElementById('teamCount').value;
 
     for (let i = 0; i < count; i++) {
-        const name = document.getElementById(`team_${i}`).value || `Tým ${i+1}`;
-        teams.push({ name: name, scores: Array(rounds).fill(0), total: 0 });
+        teams.push({
+            name: document.getElementById(`team_${i}`).value || `Tým ${i+1}`,
+            players: parseInt(document.getElementById(`players_${i}`).value) || 1,
+            scores: Array(rounds).fill(0),
+            total: 0,
+            tipTotal: 0
+        });
     }
 
     createRounds();
 }
 
-function createRounds() {
-    const container = document.getElementById('rounds');
-    container.innerHTML = '';
+function handleEnter(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        e.target.blur();
+        calculateScores();
+    }
+}
 
-    let html = '<table><tr><th>Tým</th>';
+function handleTip(teamIndex, roundIndex) {
+    teams.forEach((_, i) => {
+        if (i !== teamIndex) {
+            const el = document.getElementById(`tip_${i}_${roundIndex}`);
+            if (el) el.checked = false;
+        }
+    });
+    calculateScores();
+}
+
+function createRounds() {
+    let html = '<table><tr><th>Tým</th><th>Hráči</th>';
+
     for (let r = 0; r < rounds; r++) {
         html += `<th>${r+1}. kolo</th>`;
     }
     html += '</tr>';
 
     teams.forEach((team, i) => {
-        html += `<tr><td>${team.name}</td>`;
+        html += `<tr><td>${team.name}</td><td>${team.players}</td>`;
         for (let r = 0; r < rounds; r++) {
-            html += `<td><input type="number" id="score_${i}_${r}" value="0"></td>`;
+            html += `<td>
+                <input type="number" step="0.1"
+                    oninput="calculateScores()"
+                    onkeydown="handleEnter(event)"
+                    id="score_${i}_${r}" value="0">
+                <br>
+                <label style="color:green;font-size:12px;">
+                    <input type="checkbox" onchange="calculateScores()" id="bonus_${i}_${r}"> +1
+                </label><br>
+                <label style="color:blue;font-size:12px;">
+                    <input type="checkbox" onchange="handleTip(${i},${r})" id="tip_${i}_${r}"> +1 tip
+                </label>
+            </td>`;
         }
         html += '</tr>';
     });
 
     html += '</table>';
-    container.innerHTML = html;
+    document.getElementById('rounds').innerHTML = html;
+    calculateScores();
 }
 
 function calculateScores() {
     teams.forEach((team, i) => {
         let sum = 0;
+        team.tipTotal = 0;
+
         for (let r = 0; r < rounds; r++) {
-            let raw = document.getElementById(`score_${i}_${r}`).value;
-            raw = raw.replace(',', '.');
-            const val = parseFloat(raw) || 0;
-            team.scores[r] = val;
-            sum += val;
+            let val = parseFloat(document.getElementById(`score_${i}_${r}`).value) || 0;
+            let bonus = document.getElementById(`bonus_${i}_${r}`).checked ? 1 : 0;
+            let tip = document.getElementById(`tip_${i}_${r}`).checked ? 1 : 0;
+
+            team.scores[r] = val + bonus + tip;
+            sum += val + bonus + tip;
+            team.tipTotal += tip;
         }
+
         team.total = sum;
     });
 
-    teams.sort((a, b) => b.total - a.total);
     updateTable();
 }
 
 function updateTable() {
-    const thead = document.querySelector('#results thead');
-    const tbody = document.querySelector('#results tbody');
+    const sorted = [...teams].sort((a,b)=>b.total-a.total);
 
-    let headHTML = '<tr><th>Pořadí</th><th>Tým</th>';
-    for (let r = 0; r < rounds; r++) {
-        headHTML += `<th>${r+1}. kolo</th>`;
-    }
-    headHTML += '<th>Celkem</th></tr>';
-    thead.innerHTML = headHTML;
+    let date = document.getElementById('quizDate').value || '-';
+    let desc = document.getElementById('quizDesc').value || '-';
 
-    tbody.innerHTML = '';
+    let head = `<tr><th colspan="${rounds+5}">${desc}</th></tr>`;
+    head += `<tr><th colspan="${rounds+5}">Datum: ${date}</th></tr>`;
+    head += `<tr><th>Pořadí</th><th>Tým</th><th>Hráči</th><th>Tipy</th>`;
 
-    teams.forEach((team, index) => {
-        let row = `<tr><td>${index+1}</td><td>${team.name}</td>`;
-        team.scores.forEach(s => row += `<td>${s}</td>`);
+    for (let r=0;r<rounds;r++) head+=`<th>${r+1}</th>`;
+    head += `<th>Celkem</th></tr>`;
+
+    document.querySelector('#results thead').innerHTML = head;
+
+    let body = '';
+    sorted.forEach((team,i)=>{
+        let row = `<tr class="${i===0?'winner':''} flash">
+        <td>${i+1}</td><td>${team.name}</td><td>${team.players}</td><td>${team.tipTotal}</td>`;
+
+        team.scores.forEach((s,r)=>{
+            let bonus = document.getElementById(`bonus_${teams.indexOf(team)}_${r}`)?.checked;
+            let tip = document.getElementById(`tip_${teams.indexOf(team)}_${r}`)?.checked;
+
+            let base = s;
+            let bTxt='', tTxt='';
+
+            if (bonus){ base--; bTxt=' <span style="color:green;">+1</span>'; }
+            if (tip){ base--; tTxt=' <span style="color:blue;">+1</span>'; }
+
+            row += `<td>${base}${bTxt}${tTxt}</td>`;
+        });
+
         row += `<td class="total">${team.total}</td></tr>`;
-        tbody.innerHTML += row;
+        body += row;
     });
+
+    document.querySelector('#results tbody').innerHTML = body;
 }
 
 function openBigTable() {
-    document.getElementById('bigTable').style.display = 'block';
-    document.getElementById('bigContent').innerHTML = document.getElementById('results').outerHTML;
+    document.getElementById('bigTable').style.display='block';
+    document.getElementById('bigContent').innerHTML =
+        document.getElementById('results').outerHTML;
 }
 
 function closeBigTable() {
-    document.getElementById('bigTable').style.display = 'none';
+    document.getElementById('bigTable').style.display='none';
+}
+
+function exportCSV() {
+    const sorted=[...teams].sort((a,b)=>b.total-a.total);
+    let csv='Poradi,Tym,Hraci,Tipy';
+    for(let r=0;r<rounds;r++) csv+=`,Kolo ${r+1}`;
+    csv+=',Celkem\n';
+
+    sorted.forEach((t,i)=>{
+        csv+=`${i+1},${t.name},${t.players},${t.tipTotal}`;
+        t.scores.forEach(s=>csv+=`,`+s);
+        csv+=`,`+t.total+`\n`;
+    });
+
+    const blob=new Blob([csv]);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='vysledky.csv';
+    a.click();
+}
+
+function exportImage() {
+    html2canvas(document.getElementById('results')).then(canvas=>{
+        let a=document.createElement('a');
+        a.href=canvas.toDataURL();
+        a.download='vysledky.png';
+        a.click();
+    });
 }
 </script>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
 </body>
 </html>
