@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
@@ -9,12 +8,13 @@
 body { font-family: Arial; margin: 20px; }
 input { margin: 5px; width: 70px; }
 
-/* TABULKA VÝSLEDKŮ */
+/* TABULKA */
 #results {
     border: 3px solid black;
     border-collapse: collapse;
     width: 100%;
     margin-top: 20px;
+    table-layout: fixed;
 }
 
 #results th,
@@ -35,27 +35,24 @@ tr:nth-child(even) { background-color: #f2f2f2; }
 
 button { margin: 10px 5px; padding: 8px 12px; }
 
-/* zarovnání skóre */
+/* LEPŠÍ ZAROVNÁNÍ */
 .scoreCell {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
 }
-.scoreCell .base {
-    min-width: 28px;
+
+.base {
     text-align: right;
 }
-.scoreCell .extras {
-    min-width: 30px;
+
+.extras {
     text-align: left;
     font-size: 12px;
 }
-.scoreCell .extras span {
-    margin-left: 2px;
-}
 
-/* fullscreen tabulka */
+/* fullscreen */
 #bigTable {
     position: fixed;
     top:0; left:0;
@@ -69,7 +66,6 @@ button { margin: 10px 5px; padding: 8px 12px; }
     font-size: 26px;
 }
 </style>
-
 </head>
 
 <body>
@@ -140,12 +136,15 @@ function startQuiz() {
     createRounds();
 }
 
+/* ENTER PO KOLECH */
 function handleEnter(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
 
         const [_, i, r] = e.target.id.split('_').map(Number);
-        const next = document.getElementById(`score_${i+1}_${r}`);
+
+        let next = document.getElementById(`score_${i}_${r+1}`);
+        if (!next) next = document.getElementById(`score_${i+1}_0`);
 
         if (next) next.focus();
         else e.target.blur();
@@ -168,7 +167,7 @@ function createRounds() {
     let html = '<table><tr><th>Tým</th><th>Hráči</th>';
 
     for (let r = 0; r < rounds; r++) {
-        html += `<th>${r+1}. kolo</th>`;
+        html += `<th>${r+1}.</th>`;
     }
     html += '</tr>';
 
@@ -181,12 +180,12 @@ function createRounds() {
                     onkeydown="handleEnter(event)"
                     id="score_${i}_${r}" value="0">
 
-                <div style="display:flex;flex-direction:column;align-items:flex-start;margin-top:5px;font-size:12px;">
+                <div style="font-size:12px;">
                     <label style="color:green;">
                         Bonus <input type="checkbox" onchange="calculateScores()" id="bonus_${i}_${r}">
-                    </label>
+                    </label><br>
                     <label style="color:blue;">
-                        Tipovačka <input type="checkbox" onchange="handleTip(${i},${r})" id="tip_${i}_${r}">
+                        Tip <input type="checkbox" onchange="handleTip(${i},${r})" id="tip_${i}_${r}">
                     </label>
                 </div>
             </td>`;
@@ -229,6 +228,12 @@ function updateTable() {
             return a.tipTotal - b.tipTotal;
         });
 
+    let allFilled = teams.every((t, i) =>
+        t.scores.every((_, r) =>
+            document.getElementById(`score_${i}_${r}`).value !== ''
+        )
+    );
+
     let date = document.getElementById('quizDate').value || '-';
     let desc = document.getElementById('quizDesc').value || '-';
 
@@ -236,16 +241,18 @@ function updateTable() {
     head += `<tr><th colspan="${rounds+5}">Datum: ${date}</th></tr>`;
     head += `<tr><th>Pořadí</th><th>Tým</th><th>Hráči</th>`;
 
-    for (let r=0;r<rounds;r++) head+=`<th>${r+1}</th>`;
-    head += `<th>Tipovačky</th><th>Celkem</th></tr>`;
+    for (let r=0;r<rounds;r++) head+=`<th>${r+1}.</th>`;
+    head += `<th>Tip</th><th>Celkem</th></tr>`;
 
     document.querySelector('#results thead').innerHTML = head;
 
     let body = '';
 
     sorted.forEach((team,i)=>{
-        let row = `<tr>
-        <td>${i+1}</td><td>${team.name}</td><td>${team.players}</td>`;
+        let highlight = (i===0 && allFilled) ? 'style="background:#c8f7c5;"' : '';
+
+        let row = `<tr ${highlight}>
+        <td>${i+1}.</td><td>${team.name}</td><td>${team.players}</td>`;
 
         team.scores.forEach((s,r)=>{
             let bonus = document.getElementById(`bonus_${team.originalIndex}_${r}`)?.checked;
@@ -285,13 +292,20 @@ function closeBigTable() {
 }
 
 function exportCSV() {
-    const sorted=[...teams].sort((a,b)=>b.total-a.total);
+    const sorted = teams
+        .map((t, i) => ({ ...t }))
+        .sort((a, b) => {
+            if (b.total !== a.total) return b.total - a.total;
+            if (a.players !== b.players) return a.players - b.players;
+            return a.tipTotal - b.tipTotal;
+        });
+
     let csv='Poradi,Tym,Hraci';
     for(let r=0;r<rounds;r++) csv+=`,Kolo ${r+1}`;
-    csv+=',Tipovacky,Celkem\n';
+    csv+=',Tip,Celkem\n';
 
     sorted.forEach((t,i)=>{
-        csv+=`${i+1},${t.name},${t.players}`;
+        csv+=`${i+1}.,${t.name},${t.players}`;
         t.scores.forEach(s=>csv+=`,`+s);
         csv+=`,`+t.tipTotal+`,`+t.total+`\n`;
     });
@@ -305,8 +319,7 @@ function exportCSV() {
 
 function exportImage() {
     html2canvas(document.getElementById('results'), {
-        scale: 2,
-        useCORS: true
+        scale: 4
     }).then(canvas=>{
         let a=document.createElement('a');
         a.href=canvas.toDataURL();
