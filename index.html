@@ -6,10 +6,10 @@
 
 <style>
 body { font-family: Arial; margin: 20px; }
-input { margin: 5px; width: 70px; }
+input { margin: 1px; width: 55px; }
 
-/* TABULKA */
-#results {
+/* TABULKY */
+#results, #rounds table {
     border: 3px solid black;
     border-collapse: collapse;
     width: 100%;
@@ -17,39 +17,76 @@ input { margin: 5px; width: 70px; }
     table-layout: fixed;
 }
 
-#results th,
-#results td {
+#results th, #results td,
+#rounds th, #rounds td {
     border: 1px solid black;
-    padding: 8px;
+    padding: 4px;
     text-align: center;
     font-weight: bold;
+    position: relative;
 }
 
-#results th {
-    background-color: #eee;
-}
+#results th { background-color: #eee; }
+
+/* ÚZKÉ SLOUPCE */
+.col-rank { width: 70px; }
+.col-players { width: 60px; }
 
 tr:nth-child(even) { background-color: #f2f2f2; }
-
 .total { background-color: #d0d0d0; }
 
-button { margin: 10px 5px; padding: 8px 12px; }
-
-/* LEPŠÍ ZAROVNÁNÍ */
+/* základ */
 .scoreCell {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
+    display: flex;
     justify-content: center;
+    align-items: center;
 }
 
-.base {
-    text-align: right;
+/* bonus vpravo */
+.bonusTag {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: green;
 }
 
-.extras {
-    text-align: left;
-    font-size: 12px;
+/* ULTRA KOMPAKT BONUS */
+.bonusGroup {
+    font-size: 10px;
+    color: green;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+}
+.bonusGroup span { margin-right: 2px; }
+.bonusGroup label {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+}
+.bonusGroup input {
+    margin: 0;
+    transform: scale(0.75);
+}
+
+/* tip */
+.tipLine {
+    font-size: 10px;
+    margin-top: 1px;
+}
+
+/* HLAVIČKA KOLA */
+.roundHeader {
+    cursor: pointer;
+    font-size: 13px;
+}
+.locked {
+    background: #ddd;
 }
 
 /* fullscreen */
@@ -62,9 +99,9 @@ button { margin: 10px 5px; padding: 8px 12px; }
     display:none;
     padding:20px;
 }
-#bigTable table {
-    font-size: 26px;
-}
+#bigTable table { font-size: 26px; }
+
+button { margin: 10px 5px; padding: 8px 12px; }
 </style>
 </head>
 
@@ -78,7 +115,7 @@ button { margin: 10px 5px; padding: 8px 12px; }
 
 <h2>Nastavení týmů</h2>
 <label>Počet týmů: </label>
-<input type="number" id="teamCount" min="1" value="3">
+<input type="number" id="teamCount" min="1">
 <button onclick="createTeams()">Vytvořit týmy</button>
 
 <div id="teams"></div>
@@ -88,8 +125,7 @@ button { margin: 10px 5px; padding: 8px 12px; }
 
 <h2>Výsledky</h2>
 <button onclick="openBigTable()">Zvětšit tabulku</button>
-<button onclick="exportCSV()">Export CSV</button>
-<button onclick="exportImage()">Export obrázek</button>
+<button onclick="exportImage()">Export PNG</button>
 
 <table id="results">
 <thead></thead>
@@ -104,16 +140,19 @@ button { margin: 10px 5px; padding: 8px 12px; }
 <script>
 let teams = [];
 let rounds = 5;
+let lockedRounds = Array(rounds).fill(true);
 
 function createTeams() {
-    const count = document.getElementById('teamCount').value;
+    const count = parseInt(document.getElementById('teamCount').value);
+    if (!count || count < 1) return alert("Zadej počet týmů");
+
     const container = document.getElementById('teams');
     container.innerHTML = '';
 
     for (let i = 0; i < count; i++) {
         container.innerHTML += `Tým ${i+1}: 
         <input type="text" id="team_${i}">
-        hráči: <input type="number" value="1" id="players_${i}"><br>`;
+        hráči: <input type="number" value="1" min="1" id="players_${i}"><br>`;
     }
 
     container.innerHTML += '<button onclick="startQuiz()">Začít kvíz</button>';
@@ -126,7 +165,7 @@ function startQuiz() {
     for (let i = 0; i < count; i++) {
         teams.push({
             name: document.getElementById(`team_${i}`).value.trim() || `Tým ${i+1}`,
-            players: parseInt(document.getElementById(`players_${i}`).value) || 1,
+            players: Math.max(1, parseInt(document.getElementById(`players_${i}`).value) || 1),
             scores: Array(rounds).fill(0),
             total: 0,
             tipTotal: 0
@@ -136,38 +175,40 @@ function startQuiz() {
     createRounds();
 }
 
-/* ENTER PO KOLECH */
-function handleEnter(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
+function toggleRound(r) {
+    lockedRounds[r] = !lockedRounds[r];
 
-        const [_, i, r] = e.target.id.split('_').map(Number);
+    teams.forEach((_, i) => {
+        document.getElementById(`score_${i}_${r}`).disabled = lockedRounds[r];
+        document.getElementsByName(`bonus_${i}_${r}`).forEach(el => el.disabled = lockedRounds[r]);
+        document.getElementById(`tip_${i}_${r}`).disabled = lockedRounds[r];
+    });
 
-        let next = document.getElementById(`score_${i}_${r+1}`);
-        if (!next) next = document.getElementById(`score_${i+1}_0`);
-
-        if (next) next.focus();
-        else e.target.blur();
-
-        calculateScores();
-    }
+    document.getElementById(`head_${r}`).classList.toggle('locked', lockedRounds[r]);
 }
 
-function handleTip(teamIndex, roundIndex) {
-    teams.forEach((_, i) => {
-        if (i !== teamIndex) {
-            const el = document.getElementById(`tip_${i}_${roundIndex}`);
-            if (el) el.checked = false;
-        }
-    });
-    calculateScores();
+function handleEnter(e) {
+    if (e.key !== 'Enter') return;
+
+    const [_, i, r] = e.target.id.split('_').map(Number);
+
+    if (lockedRounds[r]) return;
+
+    e.preventDefault();
+
+    let next = document.getElementById(`score_${i}_${r+1}`);
+    if (!next || lockedRounds[r+1]) next = document.getElementById(`score_${i+1}_0`);
+
+    if (next && !next.disabled) next.focus();
 }
 
 function createRounds() {
-    let html = '<table><tr><th>Tým</th><th>Hráči</th>';
+    let html = '<table><tr><th>Tým</th><th class="col-players">Hráči</th>';
 
     for (let r = 0; r < rounds; r++) {
-        html += `<th>${r+1}.</th>`;
+        html += `<th id="head_${r}" class="roundHeader locked" onclick="toggleRound(${r})">
+            ${r+1}. kolo
+        </th>`;
     }
     html += '</tr>';
 
@@ -175,17 +216,22 @@ function createRounds() {
         html += `<tr><td>${team.name}</td><td>${team.players}</td>`;
         for (let r = 0; r < rounds; r++) {
             html += `<td>
-                <input type="number" step="0.1"
-                    oninput="calculateScores()"
+                <input type="number" min="0" max="10"
+                    disabled
                     onkeydown="handleEnter(event)"
-                    id="score_${i}_${r}" value="0">
+                    oninput="calculateScores()"
+                    id="score_${i}_${r}">
 
-                <div style="font-size:12px;">
-                    <label style="color:green;">
-                        Bonus <input type="checkbox" onchange="calculateScores()" id="bonus_${i}_${r}">
-                    </label><br>
+                <div class="bonusGroup">
+                    <span>Bonus</span>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="0.5" onchange="calculateScores()">0.5</label>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="1" onchange="calculateScores()">1</label>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="2" onchange="calculateScores()">2</label>
+                </div>
+
+                <div class="tipLine">
                     <label style="color:blue;">
-                        Tip <input type="checkbox" onchange="handleTip(${i},${r})" id="tip_${i}_${r}">
+                        Tipovačka<input type="checkbox" onchange="handleTip(${i},${r})" id="tip_${i}_${r}" disabled>
                     </label>
                 </div>
             </td>`;
@@ -195,7 +241,30 @@ function createRounds() {
 
     html += '</table>';
     document.getElementById('rounds').innerHTML = html;
+}
+
+function handleTip(teamIndex, roundIndex) {
+    if (lockedRounds[roundIndex]) return;
+
+    teams.forEach((_, i) => {
+        const el = document.getElementById(`tip_${i}_${roundIndex}`);
+        if (el) el.checked = (i === teamIndex);
+    });
     calculateScores();
+}
+
+function getBonus(i, r) {
+    let radios = document.getElementsByName(`bonus_${i}_${r}`);
+    for (let el of radios) {
+        if (el.checked) return parseFloat(el.value);
+    }
+    return 0;
+}
+
+function formatDate(d) {
+    if (!d) return '-';
+    let date = new Date(d);
+    return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).padStart(2,'0')}.${date.getFullYear()}`;
 }
 
 function calculateScores() {
@@ -204,12 +273,14 @@ function calculateScores() {
         team.tipTotal = 0;
 
         for (let r = 0; r < rounds; r++) {
-            let val = parseFloat(document.getElementById(`score_${i}_${r}`).value) || 0;
-            let bonus = document.getElementById(`bonus_${i}_${r}`).checked ? 1 : 0;
+            let base = parseInt(document.getElementById(`score_${i}_${r}`).value);
+            if (isNaN(base)) base = 0;
+
+            let bonus = getBonus(i, r);
             let tip = document.getElementById(`tip_${i}_${r}`).checked ? 1 : 0;
 
-            team.scores[r] = val + bonus + tip;
-            sum += val + bonus + tip;
+            team.scores[r] = base + bonus + tip;
+            sum += base + bonus + tip;
             team.tipTotal += tip;
         }
 
@@ -220,55 +291,37 @@ function calculateScores() {
 }
 
 function updateTable() {
-    const sorted = teams
-        .map((t, i) => ({ ...t, originalIndex: i }))
-        .sort((a, b) => {
-            if (b.total !== a.total) return b.total - a.total;
-            if (a.players !== b.players) return a.players - b.players;
-            return a.tipTotal - b.tipTotal;
-        });
+    const sorted = [...teams].sort((a, b) => b.total - a.total);
 
-    let allFilled = teams.every((t, i) =>
-        t.scores.every((_, r) =>
-            document.getElementById(`score_${i}_${r}`).value !== ''
-        )
-    );
-
-    let date = document.getElementById('quizDate').value || '-';
+    let date = formatDate(document.getElementById('quizDate').value);
     let desc = document.getElementById('quizDesc').value || '-';
 
     let head = `<tr><th colspan="${rounds+5}">${desc}</th></tr>`;
     head += `<tr><th colspan="${rounds+5}">Datum: ${date}</th></tr>`;
-    head += `<tr><th>Pořadí</th><th>Tým</th><th>Hráči</th>`;
+    head += `<tr>
+        <th class="col-rank">Pořadí</th>
+        <th>Tým</th>
+        <th class="col-players">Hráči</th>`;
 
-    for (let r=0;r<rounds;r++) head+=`<th>${r+1}.</th>`;
-    head += `<th>Tip</th><th>Celkem</th></tr>`;
+    for (let r=0;r<rounds;r++) head+=`<th>${r+1}. kolo</th>`;
+    head += `<th>Tipovačky</th><th>Celkem</th></tr>`;
 
     document.querySelector('#results thead').innerHTML = head;
 
     let body = '';
 
     sorted.forEach((team,i)=>{
-        let highlight = (i===0 && allFilled) ? 'style="background:#c8f7c5;"' : '';
-
-        let row = `<tr ${highlight}>
+        let row = `<tr>
         <td>${i+1}.</td><td>${team.name}</td><td>${team.players}</td>`;
 
         team.scores.forEach((s,r)=>{
-            let bonus = document.getElementById(`bonus_${team.originalIndex}_${r}`)?.checked;
-            let tip = document.getElementById(`tip_${team.originalIndex}_${r}`)?.checked;
-
-            let base = s;
-            let bTxt='', tTxt='';
-
-            if (bonus){ base--; bTxt=' <span style="color:green;">+1</span>'; }
-            if (tip){ base--; tTxt=' <span style="color:blue;">+1</span>'; }
+            let base = parseInt(document.getElementById(`score_${teams.indexOf(team)}_${r}`).value) || 0;
+            let bonus = getBonus(teams.indexOf(team), r);
+            let bonusHtml = bonus ? `<span class="bonusTag">+${bonus}</span>` : '';
 
             row += `<td>
-                <div class="scoreCell">
-                    <span class="base">${base}</span>
-                    <span class="extras">${bTxt}${tTxt}</span>
-                </div>
+                <div class="scoreCell">${base}</div>
+                ${bonusHtml}
             </td>`;
         });
 
@@ -281,50 +334,23 @@ function updateTable() {
     document.querySelector('#results tbody').innerHTML = body;
 }
 
+/* FULLSCREEN */
 function openBigTable() {
-    document.getElementById('bigTable').style.display='block';
-    document.getElementById('bigContent').innerHTML =
-        document.getElementById('results').outerHTML;
+    document.getElementById("bigContent").innerHTML =
+        document.getElementById("results").outerHTML;
+    document.getElementById("bigTable").style.display = "block";
 }
-
 function closeBigTable() {
-    document.getElementById('bigTable').style.display='none';
+    document.getElementById("bigTable").style.display = "none";
 }
 
-function exportCSV() {
-    const sorted = teams
-        .map((t, i) => ({ ...t }))
-        .sort((a, b) => {
-            if (b.total !== a.total) return b.total - a.total;
-            if (a.players !== b.players) return a.players - b.players;
-            return a.tipTotal - b.tipTotal;
-        });
-
-    let csv='Poradi,Tym,Hraci';
-    for(let r=0;r<rounds;r++) csv+=`,Kolo ${r+1}`;
-    csv+=',Tip,Celkem\n';
-
-    sorted.forEach((t,i)=>{
-        csv+=`${i+1}.,${t.name},${t.players}`;
-        t.scores.forEach(s=>csv+=`,`+s);
-        csv+=`,`+t.tipTotal+`,`+t.total+`\n`;
-    });
-
-    const blob=new Blob([csv]);
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='vysledky.csv';
-    a.click();
-}
-
+/* EXPORT PNG */
 function exportImage() {
-    html2canvas(document.getElementById('results'), {
-        scale: 4
-    }).then(canvas=>{
-        let a=document.createElement('a');
-        a.href=canvas.toDataURL();
-        a.download='vysledky.png';
-        a.click();
+    html2canvas(document.getElementById("results")).then(canvas => {
+        let link = document.createElement('a');
+        link.download = 'vysledky.png';
+        link.href = canvas.toDataURL();
+        link.click();
     });
 }
 </script>
