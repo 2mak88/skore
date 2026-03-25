@@ -60,7 +60,7 @@ tr:nth-child(even) { background-color: #f2f2f2; }
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 2px;
+    gap: 1px;
 }
 .bonusGroup label {
     display: flex;
@@ -211,7 +211,6 @@ function handleEnter(e) {
     if (e.key !== 'Enter') return;
 
     const [_, i, r] = e.target.id.split('_').map(Number);
-
     if (r !== activeRound) return;
 
     e.preventDefault();
@@ -322,7 +321,36 @@ function calculateScores() {
 }
 
 function updateTable() {
-    const sorted = [...teams].sort((a, b) => b.total - a.total);
+    const enriched = teams.map((team, i) => {
+
+        let baseTotal = 0;
+        let maxRound = 0;
+
+        for (let r = 0; r < rounds; r++) {
+            let base = parseInt(document.getElementById(`score_${i}_${r}`).value);
+            if (isNaN(base)) base = 0;
+
+            baseTotal += base;
+            if (base > maxRound) maxRound = base;
+        }
+
+        return {
+            ...team,
+            baseTotal,
+            maxRound,
+            originalIndex: i
+        };
+    });
+
+    const sorted = enriched.sort((a, b) => {
+
+        if (b.total !== a.total) return b.total - a.total;
+        if (b.baseTotal !== a.baseTotal) return b.baseTotal - a.baseTotal;
+        if (a.players !== b.players) return a.players - b.players;
+        if (b.maxRound !== a.maxRound) return b.maxRound - a.maxRound;
+
+        return 0;
+    });
 
     let date = formatDate(document.getElementById('quizDate').value);
     let desc = document.getElementById('quizDesc').value || '-';
@@ -340,15 +368,36 @@ function updateTable() {
     document.querySelector('#results thead').innerHTML = head;
 
     let body = '';
+    let lastKey = null;
+    let lastRank = 0;
 
     sorted.forEach((team,i)=>{
-        let row = `<tr>
-        <td>${i+1}.</td><td>${team.name}</td><td>${team.players}</td>`;
 
-        team.scores.forEach((s,r)=>{
-            let base = parseInt(document.getElementById(`score_${teams.indexOf(team)}_${r}`).value) || 0;
-            let bonus = getBonus(teams.indexOf(team), r);
-            let tip = document.getElementById(`tip_${teams.indexOf(team)}_${r}`).checked ? 1 : 0;
+        let key = `${team.total}-${team.baseTotal}-${team.players}-${team.maxRound}`;
+        let rank;
+
+        if (i === 0) {
+            rank = 1;
+        } else if (i === sorted.length - 1) {
+            rank = i + 1; // poslední musí být vždy unikát (vítěz)
+        } else if (key === lastKey) {
+            rank = lastRank;
+        } else {
+            rank = i + 1;
+        }
+
+        lastKey = key;
+        lastRank = rank;
+
+        let realIndex = team.originalIndex;
+
+        let row = `<tr>
+        <td>${rank}.</td><td>${team.name}</td><td>${team.players}</td>`;
+
+        for (let r = 0; r < rounds; r++) {
+            let base = parseInt(document.getElementById(`score_${realIndex}_${r}`).value) || 0;
+            let bonus = getBonus(realIndex, r);
+            let tip = document.getElementById(`tip_${realIndex}_${r}`).checked ? 1 : 0;
 
             let total = base + tip;
             let bonusHtml = bonus ? `<span class="bonusTag">+${bonus}</span>` : '';
@@ -357,7 +406,7 @@ function updateTable() {
                 <div class="scoreCell">${total}</div>
                 ${bonusHtml}
             </td>`;
-        });
+        }
 
         row += `<td>${team.tipTotal}</td>`;
         row += `<td class="total">${team.total}</td></tr>`;
