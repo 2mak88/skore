@@ -8,6 +8,8 @@
 body { font-family: Arial; margin: 20px; }
 input { margin: 1px; width: 55px; }
 
+.mobile input { width: 70px; font-size: 16px; }
+
 /* TABULKY */
 #results, #rounds table {
     border: 3px solid black;
@@ -16,6 +18,8 @@ input { margin: 1px; width: 55px; }
     margin-top: 20px;
     table-layout: fixed;
 }
+
+.mobile #rounds { overflow-x: auto; }
 
 #results th, #results td,
 #rounds th, #rounds td {
@@ -28,21 +32,18 @@ input { margin: 1px; width: 55px; }
 
 #results th { background-color: #eee; }
 
-/* ÚZKÉ SLOUPCE */
 .col-rank { width: 70px; }
 .col-players { width: 60px; }
 
 tr:nth-child(even) { background-color: #f2f2f2; }
 .total { background-color: #d0d0d0; }
 
-/* základ */
 .scoreCell {
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* bonus vpravo */
 .bonusTag {
     position: absolute;
     right: 4px;
@@ -52,38 +53,43 @@ tr:nth-child(even) { background-color: #f2f2f2; }
     color: green;
 }
 
-/* ULTRA KOMPAKT BONUS */
+/* BONUS */
 .bonusGroup {
     font-size: 10px;
     color: green;
-    margin: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 2px;
 }
-.bonusGroup span { margin-right: 2px; }
 .bonusGroup label {
-    margin: 0;
     display: flex;
     align-items: center;
     gap: 1px;
 }
 .bonusGroup input {
-    margin: 0;
     transform: scale(0.75);
+}
+
+/* mobile bonus větší */
+.mobile .bonusGroup {
+    font-size: 12px;
+}
+.mobile .bonusGroup input {
+    transform: scale(1);
 }
 
 /* tip */
 .tipLine {
     font-size: 10px;
-    margin-top: 1px;
+}
+.mobile .tipLine {
+    font-size: 12px;
 }
 
-/* HLAVIČKA KOLA */
+/* HLAVIČKA */
 .roundHeader {
     cursor: pointer;
-    font-size: 13px;
 }
 .locked {
     background: #ddd;
@@ -118,6 +124,12 @@ button { margin: 10px 5px; padding: 8px 12px; }
 <input type="number" id="teamCount" min="1">
 <button onclick="createTeams()">Vytvořit týmy</button>
 
+<br>
+<label>
+    📱 Mobilní režim 
+    <input type="checkbox" onchange="toggleMobile(this)">
+</label>
+
 <div id="teams"></div>
 
 <h2>Zadání výsledků</h2>
@@ -140,7 +152,11 @@ button { margin: 10px 5px; padding: 8px 12px; }
 <script>
 let teams = [];
 let rounds = 5;
-let lockedRounds = Array(rounds).fill(true);
+let activeRound = null;
+
+function toggleMobile(el) {
+    document.body.classList.toggle('mobile', el.checked);
+}
 
 function createTeams() {
     const count = parseInt(document.getElementById('teamCount').value);
@@ -176,15 +192,19 @@ function startQuiz() {
 }
 
 function toggleRound(r) {
-    lockedRounds[r] = !lockedRounds[r];
+    activeRound = r;
 
-    teams.forEach((_, i) => {
-        document.getElementById(`score_${i}_${r}`).disabled = lockedRounds[r];
-        document.getElementsByName(`bonus_${i}_${r}`).forEach(el => el.disabled = lockedRounds[r]);
-        document.getElementById(`tip_${i}_${r}`).disabled = lockedRounds[r];
-    });
+    for (let x = 0; x < rounds; x++) {
+        let locked = x !== r;
 
-    document.getElementById(`head_${r}`).classList.toggle('locked', lockedRounds[r]);
+        teams.forEach((_, i) => {
+            document.getElementById(`score_${i}_${x}`).disabled = locked;
+            document.getElementsByName(`bonus_${i}_${x}`).forEach(el => el.disabled = locked);
+            document.getElementById(`tip_${i}_${x}`).disabled = locked;
+        });
+
+        document.getElementById(`head_${x}`).classList.toggle('locked', locked);
+    }
 }
 
 function handleEnter(e) {
@@ -192,14 +212,23 @@ function handleEnter(e) {
 
     const [_, i, r] = e.target.id.split('_').map(Number);
 
-    if (lockedRounds[r]) return;
+    if (r !== activeRound) return;
 
     e.preventDefault();
 
-    let next = document.getElementById(`score_${i}_${r+1}`);
-    if (!next || lockedRounds[r+1]) next = document.getElementById(`score_${i+1}_0`);
+    let next = document.getElementById(`score_${i+1}_${r}`);
+    if (next) next.focus();
+}
 
-    if (next && !next.disabled) next.focus();
+function toggleBonus(el) {
+    if (el.checked && el.dataset.checked === "true") {
+        el.checked = false;
+        el.dataset.checked = "false";
+    } else {
+        document.getElementsByName(el.name).forEach(r => r.dataset.checked = "false");
+        el.dataset.checked = "true";
+    }
+    calculateScores();
 }
 
 function createRounds() {
@@ -224,9 +253,9 @@ function createRounds() {
 
                 <div class="bonusGroup">
                     <span>Bonus</span>
-                    <label><input type="radio" name="bonus_${i}_${r}" value="0.5" onchange="calculateScores()">0.5</label>
-                    <label><input type="radio" name="bonus_${i}_${r}" value="1" onchange="calculateScores()">1</label>
-                    <label><input type="radio" name="bonus_${i}_${r}" value="2" onchange="calculateScores()">2</label>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="0.5" onclick="toggleBonus(this)">0.5</label>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="1" onclick="toggleBonus(this)">1</label>
+                    <label><input type="radio" name="bonus_${i}_${r}" value="2" onclick="toggleBonus(this)">2</label>
                 </div>
 
                 <div class="tipLine">
@@ -244,7 +273,7 @@ function createRounds() {
 }
 
 function handleTip(teamIndex, roundIndex) {
-    if (lockedRounds[roundIndex]) return;
+    if (roundIndex !== activeRound) return;
 
     teams.forEach((_, i) => {
         const el = document.getElementById(`tip_${i}_${roundIndex}`);
@@ -279,8 +308,10 @@ function calculateScores() {
             let bonus = getBonus(i, r);
             let tip = document.getElementById(`tip_${i}_${r}`).checked ? 1 : 0;
 
-            team.scores[r] = base + bonus + tip;
-            sum += base + bonus + tip;
+            let totalRound = base + bonus + tip;
+
+            team.scores[r] = totalRound;
+            sum += totalRound;
             team.tipTotal += tip;
         }
 
@@ -317,10 +348,13 @@ function updateTable() {
         team.scores.forEach((s,r)=>{
             let base = parseInt(document.getElementById(`score_${teams.indexOf(team)}_${r}`).value) || 0;
             let bonus = getBonus(teams.indexOf(team), r);
+            let tip = document.getElementById(`tip_${teams.indexOf(team)}_${r}`).checked ? 1 : 0;
+
+            let total = base + tip;
             let bonusHtml = bonus ? `<span class="bonusTag">+${bonus}</span>` : '';
 
             row += `<td>
-                <div class="scoreCell">${base}</div>
+                <div class="scoreCell">${total}</div>
                 ${bonusHtml}
             </td>`;
         });
@@ -334,7 +368,7 @@ function updateTable() {
     document.querySelector('#results tbody').innerHTML = body;
 }
 
-/* FULLSCREEN */
+/* fullscreen */
 function openBigTable() {
     document.getElementById("bigContent").innerHTML =
         document.getElementById("results").outerHTML;
@@ -344,7 +378,7 @@ function closeBigTable() {
     document.getElementById("bigTable").style.display = "none";
 }
 
-/* EXPORT PNG */
+/* export PNG */
 function exportImage() {
     html2canvas(document.getElementById("results")).then(canvas => {
         let link = document.createElement('a');
