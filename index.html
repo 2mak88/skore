@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka PRO 2.0</title>
+<title>Kvízová tabulka PRO v2.0</title>
 
 <style>
 body {
@@ -26,7 +26,6 @@ input[type="date"] {
     font-size: 16px;
 }
 
-/* TABULKY */
 #results,
 #rounds table {
     border: 3px solid black;
@@ -71,19 +70,19 @@ button {
     padding: 8px 12px;
 }
 
-/* Odemčené / zamčené kolo */
 .roundHeader {
     cursor: pointer;
     user-select: none;
 }
+
 .locked {
     background: #ddd;
 }
+
 .activeRound {
     background: #fff3b0 !important;
 }
 
-/* Zadávání v buňce */
 .roundCellWrap {
     display: flex;
     flex-direction: column;
@@ -159,7 +158,6 @@ button {
     cursor: not-allowed;
 }
 
-/* Výsledková tabulka */
 .scoreCell {
     min-height: 28px;
     display: flex;
@@ -201,7 +199,6 @@ button {
     background: #2563eb;
 }
 
-/* fullscreen */
 #bigTable {
     position: fixed;
     top: 0;
@@ -229,42 +226,50 @@ button {
 <body>
 
 <h2>Nastavení kvízu</h2>
+
 <label>Datum: </label>
 <input type="date" id="quizDate"><br>
+
 <label>Popis: </label>
 <input type="text" id="quizDesc"><br><br>
 
 <h2>Nastavení týmů</h2>
+
 <label>Počet týmů: </label>
 <input type="number" id="teamCount" min="1">
+
 <button onclick="createTeams()">Vytvořit týmy</button>
 
 <br>
+
 <label>
-    📱 Mobilní režim
-    <input type="checkbox" onchange="toggleMobile(this)">
+📱 Mobilní režim
+<input type="checkbox" onchange="toggleMobile(this)">
 </label>
 
 <div id="teams"></div>
 
 <h2>Zadání výsledků</h2>
+
 <div id="rounds"></div>
 
 <h2>Výsledky</h2>
+
 <button onclick="openBigTable()">Zvětšit tabulku</button>
 <button onclick="exportImage()">Export PNG</button>
 
 <table id="results">
-    <thead></thead>
-    <tbody></tbody>
+<thead></thead>
+<tbody></tbody>
 </table>
 
 <div id="bigTable">
-    <button onclick="closeBigTable()">Zavřít</button>
-    <div id="bigContent"></div>
+<button onclick="closeBigTable()">Zavřít</button>
+<div id="bigContent"></div>
 </div>
 
 <script>
+
 let teams = [];
 let rounds = 5;
 let activeRound = null;
@@ -274,30 +279,42 @@ function toggleMobile(el) {
 }
 
 function createTeams() {
+
     const count = parseInt(document.getElementById('teamCount').value, 10);
+
     if (!count || count < 1) {
         alert('Zadej počet týmů');
         return;
     }
 
     const container = document.getElementById('teams');
+
     let html = '';
 
     for (let i = 0; i < count; i++) {
-        html += `Tým ${i + 1}:
-        <input type="text" id="team_${i}">
-        hráči: <input type="number" value="1" min="1" id="players_${i}"><br>`;
+
+        html += `
+            Tým ${i + 1}:
+            <input type="text" id="team_${i}">
+            hráči:
+            <input type="number" value="1" min="1" id="players_${i}">
+            <br>
+        `;
     }
 
     html += '<button onclick="startQuiz()">Začít kvíz</button>';
+
     container.innerHTML = html;
 }
 
 function startQuiz() {
+
     teams = [];
+
     const count = parseInt(document.getElementById('teamCount').value, 10);
 
     for (let i = 0; i < count; i++) {
+
         teams.push({
             name: document.getElementById(`team_${i}`).value.trim() || `Tým ${i + 1}`,
             players: Math.max(1, parseInt(document.getElementById(`players_${i}`).value, 10) || 1),
@@ -312,44 +329,91 @@ function startQuiz() {
 }
 
 function createRounds() {
-    let html = '<table><tr><th class="col-team">Tým</th><th class="col-players">Hráči</th>';
+
+    let html = `
+        <table>
+        <tr>
+        <th class="col-team">Tým</th>
+        <th class="col-players">Hráči</th>
+    `;
 
     for (let r = 0; r < rounds; r++) {
-        html += `<th id="head_${r}" class="roundHeader locked" onclick="toggleRound(${r})">${r + 1}. kolo</th>`;
+
+        html += `
+            <th id="head_${r}" class="roundHeader locked" onclick="toggleRound(${r})">
+                ${r + 1}. kolo
+            </th>
+        `;
     }
+
     html += '</tr>';
 
     teams.forEach((team, i) => {
+
         html += `<tr><td>${team.name}</td><td>${team.players}</td>`;
 
         for (let r = 0; r < rounds; r++) {
+
             html += `
-                <td>
-                    <div class="roundCellWrap">
-                        <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            class="scoreInput"
-                            disabled
-                            id="score_${i}_${r}"
-                            onkeydown="handleEnter(event)"
-                            oninput="validateScore(this); calculateScores()"
-                        >
+            <td>
 
-                        <div class="controlRow">
-                            <span class="labelGreen">Bonus</span>
-                            <button type="button" class="toggleBtn green" id="bonus05_${i}_${r}" onclick="toggleBonus(${i}, ${r}, '05')" disabled>+0,5</button>
-                            <button type="button" class="toggleBtn green" id="bonus1_${i}_${r}" onclick="toggleBonus(${i}, ${r}, '1')" disabled>+1</button>
-                            <button type="button" class="toggleBtn green" id="bonus2_${i}_${r}" onclick="toggleBonus(${i}, ${r}, '2')" disabled>+2</button>
-                        </div>
+                <div class="roundCellWrap">
 
-                        <div class="controlRow">
-                            <span class="labelBlue">Tipovačka</span>
-                            <button type="button" class="toggleBtn blue" id="tip_${i}_${r}" onclick="handleTip(${i}, ${r})" disabled>TIP</button>
-                        </div>
+                    <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        class="scoreInput"
+                        disabled
+                        id="score_${i}_${r}"
+                        onkeydown="handleEnter(event)"
+                        oninput="validateScore(this); calculateScores()"
+                    >
+
+                    <div class="controlRow">
+
+                        <span class="labelGreen">Bonus</span>
+
+                        <button type="button" class="toggleBtn green"
+                            id="bonus05_${i}_${r}"
+                            onclick="toggleBonus(${i}, ${r}, '05')"
+                            disabled>
+                            +0,5
+                        </button>
+
+                        <button type="button" class="toggleBtn green"
+                            id="bonus1_${i}_${r}"
+                            onclick="toggleBonus(${i}, ${r}, '1')"
+                            disabled>
+                            +1
+                        </button>
+
+                        <button type="button" class="toggleBtn green"
+                            id="bonus2_${i}_${r}"
+                            onclick="toggleBonus(${i}, ${r}, '2')"
+                            disabled>
+                            +2
+                        </button>
+
                     </div>
-                </td>
+
+                    <div class="controlRow">
+
+                        <span class="labelBlue">Tipovačka</span>
+
+                        <button type="button"
+                            class="toggleBtn blue"
+                            id="tip_${i}_${r}"
+                            onclick="handleTip(${i}, ${r})"
+                            disabled>
+                            TIP
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </td>
             `;
         }
 
@@ -357,16 +421,20 @@ function createRounds() {
     });
 
     html += '</table>';
+
     document.getElementById('rounds').innerHTML = html;
 }
 
 function toggleRound(r) {
+
     activeRound = r;
 
     for (let x = 0; x < rounds; x++) {
+
         const locked = x !== r;
 
         teams.forEach((_, i) => {
+
             document.getElementById(`score_${i}_${x}`).disabled = locked;
             document.getElementById(`bonus05_${i}_${x}`).disabled = locked;
             document.getElementById(`bonus1_${i}_${x}`).disabled = locked;
@@ -375,15 +443,18 @@ function toggleRound(r) {
         });
 
         const head = document.getElementById(`head_${x}`);
+
         head.classList.toggle('locked', locked);
         head.classList.toggle('activeRound', !locked);
     }
 }
 
 function handleEnter(e) {
+
     if (e.key !== 'Enter') return;
 
     const parts = e.target.id.split('_');
+
     const i = parseInt(parts[1], 10);
     const r = parseInt(parts[2], 10);
 
@@ -392,73 +463,102 @@ function handleEnter(e) {
     e.preventDefault();
 
     const next = document.getElementById(`score_${i + 1}_${r}`);
+
     if (next) next.focus();
 }
 
 function validateScore(el) {
+
     let value = parseFloat(el.value);
+
     if (isNaN(value)) return;
+
     if (value < 0) el.value = 0;
     if (value > 10) el.value = 10;
 }
 
 function toggleBonus(teamIndex, roundIndex, type) {
+
     if (roundIndex !== activeRound) return;
 
     const btn = document.getElementById(`bonus${type}_${teamIndex}_${roundIndex}`);
+
     btn.classList.toggle('active');
+
     calculateScores();
 }
 
 function handleTip(teamIndex, roundIndex) {
+
     if (roundIndex !== activeRound) return;
 
     const clicked = document.getElementById(`tip_${teamIndex}_${roundIndex}`);
+
     clicked.classList.toggle('active');
 
     calculateScores();
 }
 
 function hasTip(i, r) {
-    return document.getElementById(`tip_${i}_${r}`)?.classList.contains('active') || false;
+
+    return document
+        .getElementById(`tip_${i}_${r}`)
+        ?.classList.contains('active') || false;
 }
 
 function getBonus(i, r) {
+
     let sum = 0;
+
     if (document.getElementById(`bonus05_${i}_${r}`)?.classList.contains('active')) sum += 0.5;
     if (document.getElementById(`bonus1_${i}_${r}`)?.classList.contains('active')) sum += 1;
     if (document.getElementById(`bonus2_${i}_${r}`)?.classList.contains('active')) sum += 2;
+
     return sum;
 }
 
 function formatNumberCs(value) {
+
     if (Number.isInteger(value)) return String(value);
+
     return String(value).replace('.', ',');
 }
 
 function formatDate(d) {
+
     if (!d) return '-';
+
     const date = new Date(d);
+
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
+
     return `${day}.${month}.${year}`;
 }
 
 function calculateScores() {
+
     teams.forEach((team, i) => {
+
         let sum = 0;
         let tips = 0;
 
         for (let r = 0; r < rounds; r++) {
+
             let base = parseFloat(document.getElementById(`score_${i}_${r}`).value);
+
             if (isNaN(base)) base = 0;
 
             const bonus = getBonus(i, r);
             const tip = hasTip(i, r) ? 1 : 0;
 
-            team.scores[r] = base + bonus + tip;
-            sum += team.scores[r];
+            const roundTotal = base + bonus + tip;
+
+            team.scores[r] = roundTotal;
+
+            sum += roundTotal;
+
             tips += tip;
         }
 
@@ -470,16 +570,23 @@ function calculateScores() {
 }
 
 function updateTable() {
+
     const enriched = teams.map((team, i) => {
+
         let baseTotal = 0;
         let maxRound = 0;
 
         for (let r = 0; r < rounds; r++) {
+
             let base = parseFloat(document.getElementById(`score_${i}_${r}`)?.value);
+
             if (isNaN(base)) base = 0;
 
             baseTotal += base;
-            if (base > maxRound) maxRound = base;
+
+            if (base > maxRound) {
+                maxRound = base;
+            }
         }
 
         return {
@@ -491,27 +598,44 @@ function updateTable() {
     });
 
     enriched.sort((a, b) => {
+
         if (b.total !== a.total) return b.total - a.total;
         if (b.baseTotal !== a.baseTotal) return b.baseTotal - a.baseTotal;
         if (a.players !== b.players) return a.players - b.players;
         if (b.maxRound !== a.maxRound) return b.maxRound - a.maxRound;
+
         return 0;
     });
 
     const date = formatDate(document.getElementById('quizDate').value);
     const desc = document.getElementById('quizDesc').value || '-';
 
-    let head = `<tr><th colspan="${rounds + 5}">${desc}</th></tr>`;
-    head += `<tr><th colspan="${rounds + 5}">Datum: ${date}</th></tr>`;
-    head += `<tr>
-        <th class="col-rank">Pořadí</th>
-        <th class="col-team">Tým</th>
-        <th class="col-players">Hráči</th>`;
+    let head = `
+        <tr>
+            <th colspan="${rounds + 5}">${desc}</th>
+        </tr>
+
+        <tr>
+            <th colspan="${rounds + 5}">
+                Datum: ${date}
+            </th>
+        </tr>
+
+        <tr>
+            <th class="col-rank">Pořadí</th>
+            <th class="col-team">Tým</th>
+            <th class="col-players">Hráči</th>
+    `;
 
     for (let r = 0; r < rounds; r++) {
         head += `<th>${r + 1}. kolo</th>`;
     }
-    head += `<th>Tipovačky</th><th>Celkem</th></tr>`;
+
+    head += `
+        <th>Tipovačky</th>
+        <th>Celkem</th>
+        </tr>
+    `;
 
     document.querySelector('#results thead').innerHTML = head;
 
@@ -520,13 +644,15 @@ function updateTable() {
     let lastRank = 0;
 
     enriched.forEach((team, i) => {
+
         const key = `${team.total}|${team.baseTotal}|${team.players}|${team.maxRound}`;
+
         let rank;
 
         if (i === 0) {
             rank = 1;
         } else if (i === 1 && key === lastKey) {
-            rank = 2; // vítěz je vždy jen jeden
+            rank = 2;
         } else if (key === lastKey && lastRank > 1) {
             rank = lastRank;
         } else {
@@ -538,35 +664,56 @@ function updateTable() {
 
         const realIndex = team.originalIndex;
 
-        let row = `<tr>
-            <td>${rank}.</td>
-            <td>${team.name}</td>
-            <td>${team.players}</td>`;
+        let row = `
+            <tr>
+                <td>${rank}.</td>
+                <td>${team.name}</td>
+                <td>${team.players}</td>
+        `;
 
         for (let r = 0; r < rounds; r++) {
+
             let base = parseFloat(document.getElementById(`score_${realIndex}_${r}`).value);
+
             if (isNaN(base)) base = 0;
 
             const bonus = getBonus(realIndex, r);
             const tip = hasTip(realIndex, r) ? 1 : 0;
+
             const mainScore = base + bonus + tip;
 
             let badges = '';
-            if (bonus > 0) badges += `<span class="badge badgeGreen">+${formatNumberCs(bonus)}</span>`;
-            if (tip > 0) badges += `<span class="badge badgeBlue">TIP</span>`;
+
+            if (bonus > 0) {
+                badges += `<span class="badge badgeGreen">+${formatNumberCs(bonus)}</span>`;
+            }
+
+            if (tip > 0) {
+                badges += `<span class="badge badgeBlue">TIP</span>`;
+            }
 
             row += `
                 <td>
+
                     <div class="scoreCell">
-                        <span class="mainScore">${formatNumberCs(mainScore)}</span>
+                        <span class="mainScore">
+                            ${formatNumberCs(mainScore)}
+                        </span>
                     </div>
-                    <div class="badges">${badges}</div>
+
+                    <div class="badges">
+                        ${badges}
+                    </div>
+
                 </td>
             `;
         }
 
-        row += `<td>${team.tipTotal}</td>`;
-        row += `<td class="total">${formatNumberCs(team.total)}</td></tr>`;
+        row += `
+            <td>${team.tipTotal}</td>
+            <td class="total">${formatNumberCs(team.total)}</td>
+            </tr>
+        `;
 
         body += row;
     });
@@ -575,24 +722,34 @@ function updateTable() {
 }
 
 function openBigTable() {
-    document.getElementById('bigContent').innerHTML = document.getElementById('results').outerHTML;
+
+    document.getElementById('bigContent').innerHTML =
+        document.getElementById('results').outerHTML;
+
     document.getElementById('bigTable').style.display = 'block';
 }
 
 function closeBigTable() {
+
     document.getElementById('bigTable').style.display = 'none';
 }
 
 function exportImage() {
+
     html2canvas(document.getElementById('results'), {
         scale: window.devicePixelRatio * 2
     }).then(canvas => {
+
         const link = document.createElement('a');
+
         link.download = 'vysledky.png';
+
         link.href = canvas.toDataURL();
+
         link.click();
     });
 }
+
 </script>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
