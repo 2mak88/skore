@@ -413,13 +413,8 @@ function toggleBonus(teamIndex, roundIndex, type) {
 function handleTip(teamIndex, roundIndex) {
     if (roundIndex !== activeRound) return;
 
-    teams.forEach((_, i) => {
-        const btn = document.getElementById(`tip_${i}_${roundIndex}`);
-        btn.classList.remove('active');
-    });
-
     const clicked = document.getElementById(`tip_${teamIndex}_${roundIndex}`);
-    clicked.classList.add('active');
+    clicked.classList.toggle('active');
 
     calculateScores();
 }
