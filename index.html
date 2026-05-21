@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka PRO V2.0</title>
+<title>Kvízová tabulka PRO 2.0</title>
 
 <style>
 body {
@@ -549,7 +549,7 @@ function updateTable() {
 
             const bonus = getBonus(realIndex, r);
             const tip = hasTip(realIndex, r) ? 1 : 0;
-            const mainScore = base + tip;
+            const mainScore = base + bonus + tip;
 
             let badges = '';
             if (bonus > 0) badges += `<span class="badge badgeGreen">+${formatNumberCs(bonus)}</span>`;
