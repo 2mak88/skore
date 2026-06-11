@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka PRO v2.1 s vyhodnocením</title>
+<title>Kvízová tabulka PRO v2.2 s vyhodnocením +</title>
 
 <style>
 body {
@@ -274,6 +274,44 @@ button {
     background-color: #eee;
 }
 
+
+#svetaciOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    color: gold;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 20000;
+    padding: 30px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+#svetaciOverlayMessage {
+    font-size: 60px;
+    font-weight: bold;
+    line-height: 1.2;
+    text-shadow: 0 0 14px rgba(255, 215, 0, 0.65);
+}
+
+#svetaciOverlayHint {
+    margin-top: 30px;
+    font-size: 18px;
+    color: #ddd;
+    font-weight: normal;
+}
+
+.mobile #svetaciOverlayMessage {
+    font-size: 38px;
+}
+
+.mobile #svetaciOverlayHint {
+    font-size: 14px;
+}
+
 </style>
 </head>
 
@@ -323,7 +361,7 @@ button {
 <div id="bigContent"></div>
 </div>
 
-<div id="evaluationTable">
+<div id="evaluationTable" tabindex="-1">
 <div id="evaluationControls">
 <button onclick="closeEvaluation()">Zavřít</button>
 <button onclick="revealNextEvaluationTeam()">Odhalit další tým</button>
@@ -331,6 +369,13 @@ button {
 <span id="evaluationInfo">Odhaleno 0 / 0</span>
 </div>
 <div id="evaluationContent"></div>
+</div>
+
+<div id="svetaciOverlay" onclick="hideSvetaciOverlay()">
+    <div>
+        <div id="svetaciOverlayMessage"></div>
+        <div id="svetaciOverlayHint">(stiskni ESC)</div>
+    </div>
 </div>
 
 <script>
@@ -937,6 +982,7 @@ function openEvaluation() {
     evaluationRevealed = 0;
 
     document.getElementById('evaluationTable').style.display = 'block';
+    document.getElementById('evaluationTable').focus();
 
     renderEvaluationTable();
 }
@@ -951,6 +997,7 @@ function revealNextEvaluationTeam() {
     if (evaluationRevealed < evaluationRows.length) {
         evaluationRevealed++;
         renderEvaluationTable();
+        checkSvetaciSecretMessage();
     }
 }
 
@@ -958,6 +1005,7 @@ function revealAllEvaluationTeams() {
 
     evaluationRevealed = evaluationRows.length;
     renderEvaluationTable();
+    checkSvetaciSecretMessage();
 }
 
 function renderEvaluationTable() {
@@ -1051,6 +1099,76 @@ function renderEvaluationTable() {
     document.getElementById('evaluationInfo').textContent =
         `Odhaleno ${evaluationRevealed} / ${evaluationRows.length}`;
 }
+
+
+function normalizeTeamName(name) {
+
+    return String(name || '').trim().toLowerCase();
+}
+
+function showSvetaciOverlay(message) {
+
+    document.getElementById('svetaciOverlayMessage').innerHTML = message;
+    document.getElementById('svetaciOverlay').style.display = 'flex';
+}
+
+function hideSvetaciOverlay() {
+
+    document.getElementById('svetaciOverlay').style.display = 'none';
+}
+
+function checkSvetaciSecretMessage() {
+
+    if (evaluationRevealed !== evaluationRows.length) return;
+    if (evaluationPlayedRounds !== rounds) return;
+
+    const winner = evaluationRows[0];
+    const svetaci = evaluationRows.find(team => normalizeTeamName(team.name) === 'světáci');
+
+    if (svetaci) {
+
+        if (normalizeTeamName(winner.name) === 'světáci') {
+            showSvetaciOverlay('🏆 SVĚTÁCI JSOU NEJLEPŠÍ! 🏆');
+        } else {
+            showSvetaciOverlay('⚠️ NĚKDE SE STALA CHYBA VE VÝPOČTU.<br>SVĚTÁCI JSOU NEJLEPŠÍ! ⚠️');
+        }
+
+    } else {
+
+        showSvetaciOverlay('🏆 SVĚTÁCI JSOU STEJNĚ NEJLEPŠÍ! 🏆');
+    }
+}
+
+function isEvaluationVisible() {
+
+    return document.getElementById('evaluationTable').style.display === 'block';
+}
+
+function isSvetaciOverlayVisible() {
+
+    return document.getElementById('svetaciOverlay').style.display === 'flex';
+}
+
+document.addEventListener('keydown', function(e) {
+
+    if (e.code === 'Escape' && isSvetaciOverlayVisible()) {
+        e.preventDefault();
+        hideSvetaciOverlay();
+        return;
+    }
+
+    if (!isEvaluationVisible()) return;
+
+    if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        revealNextEvaluationTeam();
+    }
+
+    if (e.code === 'Escape') {
+        e.preventDefault();
+        closeEvaluation();
+    }
+});
 
 function exportImage() {
 
