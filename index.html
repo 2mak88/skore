@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka PRO v2.2+</title>
+<title>Kvízová tabulka PRO v2.3</title>
 
 <style>
 body {
@@ -335,6 +335,38 @@ button {
     font-size: 14px;
 }
 
+#teamEditPanel {
+    margin-top: 12px;
+}
+
+#teamEditorBox {
+    display: none;
+    margin-top: 8px;
+    padding: 10px;
+    border: 2px solid #ccc;
+    max-width: 620px;
+}
+
+#teamEditorBox table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+#teamEditorBox th,
+#teamEditorBox td {
+    border: 1px solid #ccc;
+    padding: 4px;
+    text-align: left;
+}
+
+#teamEditorBox input[type="text"] {
+    width: 95%;
+}
+
+#teamEditorBox input[type="number"] {
+    width: 70px;
+}
+
 </style>
 </head>
 
@@ -363,6 +395,7 @@ button {
 </label>
 
 <div id="teams"></div>
+<div id="teamEditPanel"></div>
 
 <h2>Zadání výsledků</h2>
 
@@ -463,6 +496,94 @@ function startQuiz() {
 
     createRounds();
     updateTable();
+    renderTeamEditor();
+}
+
+function renderTeamEditor() {
+
+    const panel = document.getElementById('teamEditPanel');
+
+    if (!panel || teams.length === 0) return;
+
+    let html = `
+        <button onclick="toggleTeamEditor()">Upravit týmy</button>
+        <div id="teamEditorBox">
+            <strong>Úprava týmů</strong><br>
+            <small>Změní pouze název a počet hráčů. Body, bonusy a tipovačky zůstanou zachované.</small>
+            <table>
+                <tr>
+                    <th>Tým</th>
+                    <th>Název</th>
+                    <th>Hráči</th>
+                </tr>
+    `;
+
+    teams.forEach((team, i) => {
+        html += `
+            <tr>
+                <td>${i + 1}</td>
+                <td><input type="text" id="editTeamName_${i}" value="${escapeHtml(team.name)}"></td>
+                <td><input type="number" min="1" id="editTeamPlayers_${i}" value="${team.players}"></td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </table>
+            <button onclick="saveTeamEdits()">Uložit změny týmů</button>
+            <button onclick="toggleTeamEditor()">Skrýt úpravy</button>
+        </div>
+    `;
+
+    panel.innerHTML = html;
+}
+
+function toggleTeamEditor() {
+
+    const box = document.getElementById('teamEditorBox');
+
+    if (!box) return;
+
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+}
+
+function saveTeamEdits() {
+
+    teams.forEach((team, i) => {
+
+        const nameInput = document.getElementById(`editTeamName_${i}`);
+        const playersInput = document.getElementById(`editTeamPlayers_${i}`);
+
+        const newName = nameInput ? nameInput.value.trim() : '';
+        const newPlayers = playersInput ? parseInt(playersInput.value, 10) : team.players;
+
+        team.name = newName || `Tým ${i + 1}`;
+        team.players = Math.max(1, newPlayers || 1);
+
+        const roundName = document.getElementById(`roundTeamName_${i}`);
+        const roundPlayers = document.getElementById(`roundTeamPlayers_${i}`);
+
+        if (roundName) roundName.textContent = team.name;
+        if (roundPlayers) roundPlayers.textContent = team.players;
+    });
+
+    calculateScores();
+    renderTeamEditor();
+
+    const box = document.getElementById('teamEditorBox');
+    if (box) box.style.display = 'block';
+
+    alert('Údaje týmů byly upraveny. Vyplněné body zůstaly zachované.');
+}
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function createRounds() {
@@ -487,7 +608,7 @@ function createRounds() {
 
     teams.forEach((team, i) => {
 
-        html += `<tr><td>${team.name}</td><td>${team.players}</td>`;
+        html += `<tr><td id="roundTeamName_${i}">${team.name}</td><td id="roundTeamPlayers_${i}">${team.players}</td>`;
 
         for (let r = 0; r < rounds; r++) {
 
