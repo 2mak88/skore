@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Kvízová tabulka PRO v2.2 s vyhodnocením +</title>
+<title>Kvízová tabulka PRO v2.2+</title>
 
 <style>
 body {
@@ -290,6 +290,21 @@ button {
     cursor: pointer;
 }
 
+#svetaciOverlayBox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    width: 100%;
+}
+
+.svetaciOverlayIcon {
+    font-size: 92px;
+    line-height: 1;
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.65));
+    flex: 0 0 auto;
+}
+
 #svetaciOverlayMessage {
     font-size: 60px;
     font-weight: bold;
@@ -302,6 +317,14 @@ button {
     font-size: 18px;
     color: #ddd;
     font-weight: normal;
+}
+
+.mobile #svetaciOverlayBox {
+    gap: 14px;
+}
+
+.mobile .svetaciOverlayIcon {
+    font-size: 48px;
 }
 
 .mobile #svetaciOverlayMessage {
@@ -373,8 +396,12 @@ button {
 
 <div id="svetaciOverlay" onclick="hideSvetaciOverlay()">
     <div>
-        <div id="svetaciOverlayMessage"></div>
-        <div id="svetaciOverlayHint">(stiskni ESC)</div>
+        <div id="svetaciOverlayBox">
+            <div class="svetaciOverlayIcon" id="svetaciOverlayIconLeft">🏆</div>
+            <div id="svetaciOverlayMessage"></div>
+            <div class="svetaciOverlayIcon" id="svetaciOverlayIconRight">🏆</div>
+        </div>
+        <div id="svetaciOverlayHint">(5 sekund drží hláška)</div>
     </div>
 </div>
 
@@ -1101,18 +1128,41 @@ function renderEvaluationTable() {
 }
 
 
+let svetaciOverlayShownAt = 0;
+let svetaciOverlayUnlockTimer = null;
+
 function normalizeTeamName(name) {
 
     return String(name || '').trim().toLowerCase();
 }
 
-function showSvetaciOverlay(message) {
+function showSvetaciOverlay(message, icon = '🏆') {
+
+    svetaciOverlayShownAt = Date.now();
+
+    if (svetaciOverlayUnlockTimer) {
+        clearTimeout(svetaciOverlayUnlockTimer);
+    }
 
     document.getElementById('svetaciOverlayMessage').innerHTML = message;
+    document.getElementById('svetaciOverlayIconLeft').textContent = icon;
+    document.getElementById('svetaciOverlayIconRight').textContent = icon;
+    document.getElementById('svetaciOverlayHint').textContent = '(5 sekund drží hláška)';
     document.getElementById('svetaciOverlay').style.display = 'flex';
+
+    svetaciOverlayUnlockTimer = setTimeout(() => {
+        document.getElementById('svetaciOverlayHint').textContent = '(stiskni ESC)';
+    }, 5000);
+}
+
+function canHideSvetaciOverlay() {
+
+    return Date.now() - svetaciOverlayShownAt >= 5000;
 }
 
 function hideSvetaciOverlay() {
+
+    if (!canHideSvetaciOverlay()) return;
 
     document.getElementById('svetaciOverlay').style.display = 'none';
 }
@@ -1128,14 +1178,14 @@ function checkSvetaciSecretMessage() {
     if (svetaci) {
 
         if (normalizeTeamName(winner.name) === 'světáci') {
-            showSvetaciOverlay('🏆 SVĚTÁCI JSOU NEJLEPŠÍ! 🏆');
+            showSvetaciOverlay('SVĚTÁCI JSOU NEJLEPŠÍ!', '🏆');
         } else {
-            showSvetaciOverlay('⚠️ NĚKDE SE STALA CHYBA VE VÝPOČTU.<br>SVĚTÁCI JSOU NEJLEPŠÍ! ⚠️');
+            showSvetaciOverlay('NĚKDE SE STALA CHYBA VE VÝPOČTU.<br>SVĚTÁCI JSOU NEJLEPŠÍ!', '⚠️');
         }
 
     } else {
 
-        showSvetaciOverlay('🏆 SVĚTÁCI JSOU STEJNĚ NEJLEPŠÍ! 🏆');
+        showSvetaciOverlay('SVĚTÁCI JSOU STEJNĚ NEJLEPŠÍ!', '🏆');
     }
 }
 
