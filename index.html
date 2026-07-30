@@ -115,6 +115,39 @@ tr:nth-child(even) {
     padding: 5px 8px;
 }
 
+#rankingNotice {
+    display: none;
+    margin: 12px 0;
+    padding: 10px;
+    border: 2px solid #d97706;
+    background: #fff7ed;
+    font-weight: bold;
+}
+
+.rankBadge {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.1;
+    color: white;
+}
+
+.rankBadgeTie {
+    background: #6b7280;
+}
+
+.rankBadgeShootout {
+    background: #dc2626;
+}
+
+.shootoutBtn {
+    margin: 4px 0 0;
+    padding: 4px 7px;
+    font-size: 11px;
+}
+
 button {
     margin: 10px 5px;
     padding: 8px 12px;
@@ -434,10 +467,10 @@ button {
 
 <div id="rankingCriteria">
 <strong>Kritéria při shodě</strong> (celkové body jsou vždy první):<br><br>
-<label><input type="checkbox" id="criterionPlayers" checked onchange="calculateScores()"> Počet hráčů</label>
-<label><input type="checkbox" id="criterionBase" checked onchange="calculateScores()"> Základní body</label>
-<label><input type="checkbox" id="criterionBest" checked onchange="calculateScores()"> Nejlepší kolo</label>
-<label><input type="checkbox" id="criterionWorst" checked onchange="calculateScores()"> Nejhorší kolo</label>
+<label><input type="checkbox" id="criterionPlayers" onchange="calculateScores()"> Počet hráčů</label>
+<label><input type="checkbox" id="criterionBase" onchange="calculateScores()"> Základní body</label>
+<label><input type="checkbox" id="criterionBest" onchange="calculateScores()"> Nejlepší kolo</label>
+<label><input type="checkbox" id="criterionWorst" onchange="calculateScores()"> Nejhorší kolo</label>
 </div>
 
 <h2>Nastavení týmů</h2>
@@ -470,6 +503,8 @@ button {
 <button onclick="toggleHistory()">Historie</button>
 
 <div id="historyPanel"></div>
+
+<div id="rankingNotice"></div>
 
 <table id="results">
 <thead></thead>
@@ -507,6 +542,7 @@ button {
 let teams = [];
 let rounds = 5;
 let activeRound = null;
+let shootoutWinnerIndex = null;
 
 function toggleMobile(el) {
     document.body.classList.toggle('mobile', el.checked);
@@ -544,6 +580,7 @@ function createTeams() {
 function startQuiz() {
 
     teams = [];
+    shootoutWinnerIndex = null;
 
     const count = parseInt(document.getElementById('teamCount').value, 10);
 
@@ -862,10 +899,10 @@ function formatDate(d) {
 function getRankingCriteria() {
 
     return {
-        players: document.getElementById('criterionPlayers')?.checked ?? true,
-        base: document.getElementById('criterionBase')?.checked ?? true,
-        best: document.getElementById('criterionBest')?.checked ?? true,
-        worst: document.getElementById('criterionWorst')?.checked ?? true
+        players: document.getElementById('criterionPlayers')?.checked ?? false,
+        base: document.getElementById('criterionBase')?.checked ?? false,
+        best: document.getElementById('criterionBest')?.checked ?? false,
+        worst: document.getElementById('criterionWorst')?.checked ?? false
     };
 }
 
@@ -896,6 +933,133 @@ function getRankingKey(team) {
     return parts.join('|');
 }
 
+function rankEnrichedTeams(enriched) {
+
+    const ordered = enriched.slice().sort(compareRankingTeams);
+
+    if (ordered.length === 0) return [];
+
+    const topKey = getRankingKey(ordered[0]);
+    const topGroup = [];
+
+    for (const team of ordered) {
+        if (getRankingKey(team) !== topKey) break;
+        topGroup.push(team);
+    }
+
+    let validShootoutWinner = null;
+
+    if (topGroup.length > 1 && shootoutWinnerIndex !== null) {
+        validShootoutWinner = topGroup.find(team => team.originalIndex === shootoutWinnerIndex) || null;
+    }
+
+    if (!validShootoutWinner && shootoutWinnerIndex !== null) {
+        shootoutWinnerIndex = null;
+    }
+
+    let finalOrder = ordered;
+
+    if (validShootoutWinner) {
+        finalOrder = [
+            validShootoutWinner,
+            ...topGroup.filter(team => team.originalIndex !== validShootoutWinner.originalIndex),
+            ...ordered.slice(topGroup.length)
+        ];
+    }
+
+    const ranked = [];
+    let lastKey = null;
+    let lastRank = 0;
+
+    finalOrder.forEach((team, i) => {
+
+        const key = getRankingKey(team);
+        let rank;
+
+        if (validShootoutWinner && i === 0) {
+            rank = 1;
+        } else if (validShootoutWinner && i < topGroup.length) {
+            rank = 2;
+        } else if (i === 0) {
+            rank = 1;
+        } else if (key === lastKey) {
+            rank = lastRank;
+        } else {
+            rank = i + 1;
+        }
+
+        ranked.push({ ...team, rank });
+        lastKey = key;
+        lastRank = rank;
+    });
+
+    const rankCounts = new Map();
+
+    ranked.forEach(team => {
+        rankCounts.set(team.rank, (rankCounts.get(team.rank) || 0) + 1);
+    });
+
+    const shootoutPending = topGroup.length > 1 && !validShootoutWinner;
+
+    return ranked.map(team => ({
+        ...team,
+        tieType: shootoutPending && team.rank === 1
+            ? 'shootout'
+            : ((rankCounts.get(team.rank) || 0) > 1 ? 'tie' : ''),
+        shootoutCandidate: shootoutPending && team.rank === 1
+    }));
+}
+
+function setShootoutWinner(teamIndex) {
+
+    shootoutWinnerIndex = teamIndex;
+    calculateScores();
+
+    if (isEvaluationVisible()) {
+        const revealed = evaluationRevealed;
+        evaluationRows = buildEvaluationRows(evaluationPlayedRounds);
+        evaluationRevealed = revealed;
+        renderEvaluationTable();
+    }
+}
+
+function updateRankingNotice(rankedTeams) {
+
+    const notice = document.getElementById('rankingNotice');
+    if (!notice) return;
+
+    const hasShootout = rankedTeams.some(team => team.tieType === 'shootout');
+    const hasTie = rankedTeams.some(team => team.tieType === 'tie');
+
+    if (hasShootout) {
+        notice.textContent = '⚠️ SHODA NA 1. MÍSTĚ – NUTNÝ ROZSTŘEL';
+        notice.style.display = 'block';
+    } else if (hasTie) {
+        notice.textContent = 'SHODA VE VÝSLEDCÍCH';
+        notice.style.display = 'block';
+    } else {
+        notice.textContent = '';
+        notice.style.display = 'none';
+    }
+}
+
+function getRoundScoreParts(teamIndex, roundIndex) {
+
+    let base = parseFloat(document.getElementById(`score_${teamIndex}_${roundIndex}`)?.value);
+    if (isNaN(base)) base = 0;
+
+    const bonus = getBonus(teamIndex, roundIndex);
+    const tip = hasTip(teamIndex, roundIndex) ? 1 : 0;
+
+    return {
+        base,
+        bonus,
+        tip,
+        mainScore: base + tip,
+        total: base + tip + bonus
+    };
+}
+
 function calculateScores() {
 
     teams.forEach((team, i) => {
@@ -905,20 +1069,13 @@ function calculateScores() {
 
         for (let r = 0; r < rounds; r++) {
 
-            let base = parseFloat(document.getElementById(`score_${i}_${r}`).value);
+            const round = getRoundScoreParts(i, r);
 
-            if (isNaN(base)) base = 0;
+            team.scores[r] = round.total;
 
-            const bonus = getBonus(i, r);
-            const tip = hasTip(i, r) ? 1 : 0;
+            sum += round.total;
 
-            const roundTotal = base + bonus + tip;
-
-            team.scores[r] = roundTotal;
-
-            sum += roundTotal;
-
-            tips += tip;
+            tips += round.tip;
         }
 
         team.total = sum;
@@ -934,31 +1091,38 @@ function updateTable() {
 
     const enriched = teams.map((team, i) => {
 
+        let total = 0;
+        let tipTotal = 0;
         let baseTotal = 0;
         let maxRound = 0;
         let minRound = playedRounds > 0 ? Infinity : 0;
 
         for (let r = 0; r < rounds; r++) {
 
-            let base = parseFloat(document.getElementById(`score_${i}_${r}`)?.value);
+            const round = getRoundScoreParts(i, r);
 
-            if (isNaN(base)) base = 0;
+            total += round.total;
+            tipTotal += round.tip;
+            baseTotal += round.base;
 
-            baseTotal += base;
-
-            if (base > maxRound) {
-                maxRound = base;
+            if (round.base > maxRound) {
+                maxRound = round.base;
             }
 
-            if (r < playedRounds && base < minRound) {
-                minRound = base;
+            if (r < playedRounds && round.base < minRound) {
+                minRound = round.base;
             }
         }
 
         if (minRound === Infinity) minRound = 0;
 
+        team.total = total;
+        team.tipTotal = tipTotal;
+
         return {
             ...team,
+            total,
+            tipTotal,
             baseTotal,
             maxRound,
             minRound,
@@ -966,7 +1130,8 @@ function updateTable() {
         };
     });
 
-    enriched.sort(compareRankingTeams);
+    const rankedTeams = rankEnrichedTeams(enriched);
+    updateRankingNotice(rankedTeams);
 
     const date = formatDate(document.getElementById('quizDate').value);
     const desc = document.getElementById('quizDesc').value || '-';
@@ -1001,53 +1166,37 @@ function updateTable() {
     document.querySelector('#results thead').innerHTML = head;
 
     let body = '';
-    let lastKey = null;
-    let lastRank = 0;
 
-    enriched.forEach((team, i) => {
-
-        const key = getRankingKey(team);
-
-        let rank;
-
-        if (i === 0) {
-            rank = 1;
-        } else if (key === lastKey) {
-            rank = lastRank;
-        } else {
-            rank = i + 1;
-        }
-
-        lastKey = key;
-        lastRank = rank;
+    rankedTeams.forEach(team => {
 
         const realIndex = team.originalIndex;
+        const rankBadge = team.tieType === 'shootout'
+            ? '<br><span class="rankBadge rankBadgeShootout">ROZSTŘEL</span>'
+            : (team.tieType === 'tie' ? '<br><span class="rankBadge rankBadgeTie">SHODA</span>' : '');
+        const shootoutButton = team.shootoutCandidate
+            ? `<br><button type="button" class="shootoutBtn" onclick="setShootoutWinner(${realIndex})">Vítěz rozstřelu</button>`
+            : '';
 
         let row = `
             <tr>
-                <td>${rank}.</td>
-                <td class="col-team">${team.name}</td>
+                <td>${team.rank}.${rankBadge}</td>
+                <td class="col-team">${team.name}${shootoutButton}</td>
                 <td>${team.players}</td>
         `;
 
         for (let r = 0; r < rounds; r++) {
 
-            let base = parseFloat(document.getElementById(`score_${realIndex}_${r}`).value);
+            const round = getRoundScoreParts(realIndex, r);
 
-            if (isNaN(base)) base = 0;
-
-            const bonus = getBonus(realIndex, r);
-            const tip = hasTip(realIndex, r) ? 1 : 0;
-
-            const mainScore = base + tip;
+            const mainScore = round.mainScore;
 
             let badges = '';
 
-            if (bonus > 0) {
-                badges += `<span class="badge badgeGreen">+${formatNumberCs(bonus)}</span>`;
+            if (round.bonus > 0) {
+                badges += `<span class="badge badgeGreen">+${formatNumberCs(round.bonus)}</span>`;
             }
 
-            if (tip > 0) {
+            if (round.tip > 0) {
                 badges += `<span class="badge badgeBlue">TIP</span>`;
             }
 
@@ -1137,33 +1286,26 @@ function buildEvaluationRows(playedRounds) {
 
         for (let r = 0; r < playedRounds; r++) {
 
-            let base = parseFloat(document.getElementById(`score_${i}_${r}`)?.value);
+            const round = getRoundScoreParts(i, r);
 
-            if (isNaN(base)) base = 0;
+            baseTotal += round.base;
+            total += round.total;
+            tipTotal += round.tip;
 
-            const bonus = getBonus(i, r);
-            const tip = hasTip(i, r) ? 1 : 0;
-            const roundTotal = base + bonus + tip;
-            const mainScore = base + tip;
-
-            baseTotal += base;
-            total += roundTotal;
-            tipTotal += tip;
-
-            if (base > maxRound) {
-                maxRound = base;
+            if (round.base > maxRound) {
+                maxRound = round.base;
             }
 
-            if (base < minRound) {
-                minRound = base;
+            if (round.base < minRound) {
+                minRound = round.base;
             }
 
             roundData.push({
-                base,
-                bonus,
-                tip,
-                mainScore,
-                roundTotal
+                base: round.base,
+                bonus: round.bonus,
+                tip: round.tip,
+                mainScore: round.mainScore,
+                roundTotal: round.total
             });
         }
 
@@ -1182,33 +1324,7 @@ function buildEvaluationRows(playedRounds) {
         };
     });
 
-    enriched.sort(compareRankingTeams);
-
-    let lastKey = null;
-    let lastRank = 0;
-
-    return enriched.map((team, i) => {
-
-        const key = getRankingKey(team);
-
-        let rank;
-
-        if (i === 0) {
-            rank = 1;
-        } else if (key === lastKey) {
-            rank = lastRank;
-        } else {
-            rank = i + 1;
-        }
-
-        lastKey = key;
-        lastRank = rank;
-
-        return {
-            ...team,
-            rank
-        };
-    });
+    return rankEnrichedTeams(enriched);
 }
 
 function openEvaluation() {
@@ -1296,10 +1412,17 @@ function renderEvaluationTable() {
 
     visibleRows.forEach(team => {
 
+        const rankBadge = team.tieType === 'shootout'
+            ? '<br><span class="rankBadge rankBadgeShootout">ROZSTŘEL</span>'
+            : (team.tieType === 'tie' ? '<br><span class="rankBadge rankBadgeTie">SHODA</span>' : '');
+        const shootoutButton = team.shootoutCandidate
+            ? `<br><button type="button" class="shootoutBtn" onclick="setShootoutWinner(${team.originalIndex})">Vítěz rozstřelu</button>`
+            : '';
+
         html += `
             <tr>
-                <td>${team.rank}.</td>
-                <td class="col-team">${team.name}</td>
+                <td>${team.rank}.${rankBadge}</td>
+                <td class="col-team">${team.name}${shootoutButton}</td>
                 <td>${team.players}</td>
         `;
 
@@ -1465,6 +1588,7 @@ function captureQuizState() {
         quizDate: document.getElementById('quizDate').value,
         quizDesc: document.getElementById('quizDesc').value,
         criteria: getRankingCriteria(),
+        shootoutWinnerIndex,
         teams: teams.map((team, i) => ({
             name: team.name,
             players: team.players,
@@ -1565,10 +1689,10 @@ function loadQuizFromHistory(id) {
     document.getElementById('teamCount').value = item.teams.length;
 
     if (item.criteria) {
-        document.getElementById('criterionPlayers').checked = item.criteria.players !== false;
-        document.getElementById('criterionBase').checked = item.criteria.base !== false;
-        document.getElementById('criterionBest').checked = item.criteria.best !== false;
-        document.getElementById('criterionWorst').checked = item.criteria.worst !== false;
+        document.getElementById('criterionPlayers').checked = item.criteria?.players === true;
+        document.getElementById('criterionBase').checked = item.criteria?.base === true;
+        document.getElementById('criterionBest').checked = item.criteria?.best === true;
+        document.getElementById('criterionWorst').checked = item.criteria?.worst === true;
     }
 
     createTeams();
@@ -1579,6 +1703,10 @@ function loadQuizFromHistory(id) {
     });
 
     startQuiz();
+
+    shootoutWinnerIndex = Number.isInteger(item.shootoutWinnerIndex)
+        ? item.shootoutWinnerIndex
+        : null;
 
     item.teams.forEach((team, i) => {
         const savedRounds = Array.isArray(team.rounds) ? team.rounds : [];
