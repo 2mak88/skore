@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<title>Quizzer by 2mak</title>
+<title>Quizzer by 2mak v2.6</title>
 
 <style>
 body {
@@ -77,6 +77,13 @@ tr:nth-child(even) {
     font-size: 16px;
     font-weight: normal;
     color: #666;
+}
+
+.appVersion {
+    margin-top: -12px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: #777;
 }
 
 #rankingCriteria {
@@ -456,6 +463,7 @@ button {
 <body>
 
 <h1 class="appTitle">Quizzer <small>by 2mak</small></h1>
+<div class="appVersion">v2.6 &bull; změna 30.07.2026</div>
 
 <h2>Nastavení kvízu</h2>
 
@@ -468,7 +476,7 @@ button {
 <div id="rankingCriteria">
 <strong>Kritéria při shodě</strong> (celkové body jsou vždy první):<br><br>
 <label><input type="checkbox" id="criterionPlayers" onchange="calculateScores()"> Počet hráčů</label>
-<label><input type="checkbox" id="criterionBase" onchange="calculateScores()"> Základní body</label>
+<label><input type="checkbox" id="criterionBase" onchange="calculateScores()"> Základní body (bez TIPu)</label>
 <label><input type="checkbox" id="criterionBest" onchange="calculateScores()"> Nejlepší kolo</label>
 <label><input type="checkbox" id="criterionWorst" onchange="calculateScores()"> Nejhorší kolo</label>
 </div>
@@ -1055,8 +1063,9 @@ function getRoundScoreParts(teamIndex, roundIndex) {
         base,
         bonus,
         tip,
+        withoutTip: base + bonus,
         mainScore: base + tip,
-        total: base + tip + bonus
+        total: base + bonus + tip
     };
 }
 
@@ -1103,14 +1112,14 @@ function updateTable() {
 
             total += round.total;
             tipTotal += round.tip;
-            baseTotal += round.base;
+            baseTotal += round.withoutTip;
 
-            if (round.base > maxRound) {
-                maxRound = round.base;
+            if (round.withoutTip > maxRound) {
+                maxRound = round.withoutTip;
             }
 
-            if (r < playedRounds && round.base < minRound) {
-                minRound = round.base;
+            if (r < playedRounds && round.withoutTip < minRound) {
+                minRound = round.withoutTip;
             }
         }
 
@@ -1288,16 +1297,16 @@ function buildEvaluationRows(playedRounds) {
 
             const round = getRoundScoreParts(i, r);
 
-            baseTotal += round.base;
+            baseTotal += round.withoutTip;
             total += round.total;
             tipTotal += round.tip;
 
-            if (round.base > maxRound) {
-                maxRound = round.base;
+            if (round.withoutTip > maxRound) {
+                maxRound = round.withoutTip;
             }
 
-            if (round.base < minRound) {
-                minRound = round.base;
+            if (round.withoutTip < minRound) {
+                minRound = round.withoutTip;
             }
 
             roundData.push({
